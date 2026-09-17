@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 
 # Репозитории
-from app.repositories.post import PostRepository
+from app.repositories.posts import PostRepository
 from app.repositories.user import UserRepository
 from app.repositories.group import GroupRepository
 

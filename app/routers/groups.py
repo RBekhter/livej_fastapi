@@ -5,7 +5,7 @@ from app.database import get_db
 from app.models import Group
 from app.schemas import GroupRead
 
-router = APIRouter(prefix="/groups", tags=["groups"])
+router = APIRouter(tags=["groups"])
 
 @router.get("/", response_model=list[GroupRead])
 async def list_groups(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):

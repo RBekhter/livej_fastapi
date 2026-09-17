@@ -10,7 +10,10 @@ from typing import Optional
 from app.database import get_db
 from app.models import Post, User, Group, Comment, Follow
 from app.schemas import *
-# from app.dependencies import get_current_user
+from app.dependencies import get_post_service, get_user_service, get_group_service
+from app.services.post import PostService
+from app.services.user import UserService
+from app.services.group import GroupService
 from app.core.auth import current_active_user
 
 def handle_domain_exception(exc: Exception):

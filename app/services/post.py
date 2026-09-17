@@ -1,4 +1,4 @@
-from app.repositories.post import PostRepository
+from app.repositories.posts import PostRepository
 from app.repositories.group import GroupRepository
 from app.schemas import PostCreate, PostList, PostDetailResponse, CommentCreate, CommentRead, GroupRead
 from app.exceptions import PostNotFoundError, PermissionDeniedError, GroupNotFoundError

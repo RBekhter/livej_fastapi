@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.database import get_db
 from app.models import Comment, Post
 from app.schemas import CommentCreate, CommentRead
-from app.dependencies import get_current_user
+from app.core.auth import current_active_user
 
 router = APIRouter(prefix="/posts/{post_id}/comments", tags=["comments"])
 
@@ -18,7 +18,7 @@ async def create_comment(
     post_id: int,
     comment_data: CommentCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(current_active_user)
 ):
     post = await db.get(Post, post_id)
     if not post:
