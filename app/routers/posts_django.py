@@ -6,11 +6,19 @@ from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.ext.asyncio import AsyncSession #
 from typing import Optional
 
+
 from app.database import get_db
 from app.models import Post, User, Group, Comment, Follow
 from app.schemas import *
 # from app.dependencies import get_current_user
 from app.core.auth import current_active_user
+
+def handle_domain_exception(exc: Exception):
+    if isinstance(exc, PostNotFoundError):
+        raise HTTPException(status_code=404, detail=str(exc))
+    if isinstance(exc, PermissionDeniedError):
+        raise HTTPException(status_code=403, detail=str(exc))
+    raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
 router = APIRouter(tags=["posts"])
 
@@ -18,8 +26,13 @@ router = APIRouter(tags=["posts"])
 @router.get("/posts/", response_model=Page[PostList])
 async def index(
     q: Optional[str] = Query(None, description="Поиск по тексту"),
-    db: AsyncSession = Depends(get_db)
+    service: PostService = Depends(get_post_service)
 ):
+    try:
+        return await service.get_posts(q)
+    except Exception as e:
+        handle_domain_exception(e)
+
     # joinedload тянет автора сразу
     stmt = (
         select(Post)
@@ -34,9 +47,15 @@ async def index(
 
 @router.get("/follow/", response_model=Page[PostList])
 async def follow_index(
-    db: AsyncSession = Depends(get_db),
+    service: PostService = Depends(get_post_service),
     current_user: User = Depends(current_active_user)
 ):
+
+    try:
+        return await service.get_follow_posts(current_user.id)
+    except Exception as e:
+        handle_domain_exception(e)
+
     stmt = (
         select(Post)
         .join(Follow, Post.author_id == Follow.author_id)
@@ -50,8 +69,14 @@ async def follow_index(
 @router.get("/groups/{slug}/")
 async def group_posts(
     slug: str,
-    db: AsyncSession = Depends(get_db)
+    service: PostService = Depends(get_post_service)
 ):
+
+    try:
+        return await service.get_group_posts(slug)
+    except Exception as e:
+        handle_domain_exception(e)
+
     group = await db.scalar(select(Group).where(Group.slug == slug))
     if not group:
         raise HTTPException(404, "Сообщество не найдено")
@@ -70,10 +95,16 @@ async def group_posts(
 @router.post("/posts/", response_model=PostList, status_code=201)
 async def create_post(
     form: PostCreate,
-    db: AsyncSession = Depends(get_db),
+    service: PostService = Depends(get_post_service),
     # current_user: User = Depends(current_active_user)
     current_user: User = Depends(current_active_user) # добавлено
 ):
+    
+    try:
+        return await service.create_post(current_user, form)
+    except Exception as e:
+        handle_domain_exception(e)
+
     new_post = Post(
         text=form.text,
         image=form.image,
@@ -91,10 +122,16 @@ async def create_post(
 async def edit_post(
     post_id: int,
     form: PostCreate,
-    db: AsyncSession = Depends(get_db),
+    service: PostService = Depends(get_post_service),
     # current_user: User = Depends(current_active_user)
     current_user: User = Depends(current_active_user)
 ):
+
+    try:
+        return await service.edit_post(current_user, post_id, form)
+    except Exception as e:
+        handle_domain_exception(e)
+
     post = await db.scalar(select(Post).where(Post.id == post_id))
     if not post:
         raise HTTPException(404, "Пост не найден")
@@ -143,22 +180,41 @@ async def _get_profile_logic(db, target_username, current_user):
 
 @router.get("/profile/me", response_model=ProfileResponse)
 async def my_profile(
-    db: AsyncSession = Depends(get_db),
+    service: UserService = Depends(get_user_service),
     current_user: User = Depends(current_active_user)
 ):
+
+    try:
+        service._get_profile(current_user)
+    except Exception as e:
+        handle_domain_exception(e)
+
     return await _get_profile_logic(db, current_user.username, current_user)
 
 @router.get("/profile/{username}", response_model=ProfileResponse)
 async def user_profile(
     username: str,
-    db: AsyncSession = Depends(get_db),
+    service: UserService = Depends(get_user_service),
     current_user: Optional[User] = Depends(current_active_user)
 ):
+
+    try:
+        service._get_profile(username, current_user)
+    except Exception as e:
+        handle_domain_exception(e)
+
+    return await _get_profile_logic(db, current_user.username, current_user)
     return await _get_profile_logic(db, username, current_user)
 
 
 @router.get("/posts/{post_id}", response_model=PostDetailResponse)
-async def post_detail(post_id: int, db: AsyncSession = Depends(get_db)):
+async def post_detail(post_id: int, service: PostService = Depends(get_post_service)):
+
+    try:
+        service._get_post_detail(post_id)
+    except Exception as e:
+        handle_domain_exception(e)
+
     # 1 запрос: Post + Author + Group + Comments (без N+1)
     stmt = (
         select(Post)
@@ -182,18 +238,27 @@ async def post_detail(post_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/groups/", response_model=list[GroupRead])
-async def list_groups(db: AsyncSession = Depends(get_db)):
-    stmt = select(Group).order_by(Group.title)
-    return await db.scalars(stmt).all()
+async def list_groups(service: GroupService = Depends(get_group_service)):
+
+    try:
+        service._get_all_groups()
+    except Exception as e:
+        handle_domain_exception(e)
 
 
 @router.post("/posts/{post_id}/comments/", response_model=CommentRead, status_code=201)
 async def add_comment(
     post_id: int,
     form: CommentCreate,
-    db: AsyncSession = Depends(get_db),
+    service: PostService = Depends(get_post_service),
     current_user: User = Depends(current_active_user)
 ):
+
+    try:
+        service.add_comment(current_user, form)
+    except Exception as e:
+        handle_domain_exception(e)
+
     post = await db.scalar(select(Post).where(Post.id == post_id))
     if not post:
         raise HTTPException(404, "Пост не найден")
@@ -208,45 +273,40 @@ async def add_comment(
 @router.post("/profile/{username}/follow/", status_code=201)
 async def follow_user(
     username: str,
-    db: AsyncSession = Depends(get_db),
+    service: UserService = Depends(get_user_service),
     current_user: User = Depends(current_active_user)
 ):
-    author = await db.scalar(select(User).where(User.username == username))
-    if not author or author.id == current_user.id:
-        raise HTTPException(400, "Нельзя подписаться на себя или несуществующего пользователя")
 
-    exists = await db.scalar(
-        select(Follow).where(Follow.user_id == current_user.id, Follow.author_id == author.id)
-    )
-    if not exists:
-        db.add(Follow(user_id=current_user.id, author_id=author.id))
-        await db.commit()
-    return {"status": "following"}
-
+    try:
+        service.follow_user(current_user, username)
+    except Exception as e:
+        handle_domain_exception(e)
 
 @router.delete("/profile/{username}/follow/")
 async def unfollow_user(
     username: str,
-    db: AsyncSession = Depends(get_db),
+    service: UserService = Depends(get_user_service),
     current_user: User = Depends(current_active_user)
 ):
-    author = await db.scalar(select(User).where(User.username == username))
-    if not author:
-        raise HTTPException(404, "Пользователь не найден")
 
-    await db.execute(
-        delete(Follow).where(Follow.user_id == current_user.id, Follow.author_id == author.id)
-    )
-    await db.commit()
-    return {"status": "unfollowed"}
+    try:
+        service.follow_user(current_user, username)
+    except Exception as e:
+        handle_domain_exception(e)
 
 
 @router.delete("/posts/{post_id}/", status_code=204)
 async def delete_post(
     post_id: int,
-    db: AsyncSession = Depends(get_db),
+    service: PostService = Depends(get_post_service),
     current_user: User = Depends(current_active_user)
 ):
+
+    try:
+        service.get_post_detail(current_user, post_id)
+    except Exception as e:
+        handle_domain_exception(e)
+
     # Достать пост из базы
     # проверка на None
     # проверка автора поста
