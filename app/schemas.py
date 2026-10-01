@@ -1,90 +1,98 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional
-from fastapi_pagination import Page
-from fastapi_users import schemas
 
 
-# class UserShort(BaseModel):
-#     id: int
-#     username: str
-#     model_config = ConfigDict(from_attributes=True)
-
-class UserRead(schemas.BaseUser[int]):
-    username: str
-    
-    # Разрешаем Pydantic читать данные из ORM-объектов (SQLAlchemy)
-    model_config = ConfigDict(from_attributes=True)
-
-class UserCreate(schemas.BaseUserCreate):
-    username: str
-    email: EmailStr
-
-class GroupRead(BaseModel):
+# ==========================================
+# ПОЛЬЗОВАТЕЛИ (USERS)
+# ==========================================
+class UserRead(BaseModel):
     id: int
-    title: str
-    slug: str
-    description: str
+    email: str
+    username: str
+    is_active: bool
+    is_superuser: bool
+    is_verified: bool
     model_config = ConfigDict(from_attributes=True)
 
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    username: str
+    is_active: bool = True
+    is_superuser: bool = False
+    is_verified: bool = False
 
-class PostCreate(BaseModel):
+class UserUpdate(BaseModel):
+    email: str | None = None
+    password: str | None = None
+    username: str | None = None
+    is_active: bool | None = None
+    is_superuser: bool | None = None
+    is_verified: bool | None = None
+
+
+# ==========================================
+# КОММЕНТАРИИ (COMMENTS)
+# ==========================================
+class CommentRead(BaseModel):
+    id: int
     text: str
-    group_id: Optional[int] = None
-    image: Optional[str] = None  # В FastAPI файлы обрабатываются отдельно
-
-# class PostRead(PostCreate):
-#     id: int
-#     pub_date: datetime
-#     author_id: int
-#     model_config = ConfigDict(from_attributes=True)
-
+    pub_date: datetime
+    author: UserRead | None = None
+    author_id: int
+    model_config = ConfigDict(from_attributes=True)
 
 class CommentCreate(BaseModel):
     text: str
 
-class CommentRead(CommentCreate):
-    id: int
-    pub_date: datetime
-    # author_id: int
-    author: UserRead  # Вложенный автор комментария
-    model_config = ConfigDict(from_attributes=True)
 
-# new
-
-class UserShort(BaseModel):
-    id: int
-    username: str
-    model_config = ConfigDict(from_attributes=True)
-
+# ==========================================
+# ПОСТЫ (POSTS)
+# ==========================================
 class PostList(BaseModel):
     id: int
     text: str
     pub_date: datetime
-    image: Optional[str] = None
+    image: str | None = None
     author: UserRead
     author_id: int
-    group_id: Optional[int]
-    model_config = ConfigDict(from_attributes=True)
-
-class PostDetail(BaseModel):
-    id: int
-    text: str
-    pub_date: datetime
-    image: Optional[str] = None
-    author: UserRead
-    group: Optional[GroupRead] = None
+    group_id: int | None = None
     comments: list[CommentRead] = []
     model_config = ConfigDict(from_attributes=True)
 
+class PostCreate(BaseModel):
+    text: str
+    image: str | None = None
+    group_id: int | None = None
+
 class PostDetailResponse(BaseModel):
-    post: PostDetail
+    post: PostList
     author_post_count: int
 
+
+# ==========================================
+# ПРОФИЛЬ (PROFILE)
+# ==========================================
 class ProfileResponse(BaseModel):
     author: UserRead
-    posts: Page[PostList]  # Пагинированный список
+    posts: dict
     is_following: bool
     total_posts: int
+
+
+# ==========================================
+# СООБЩЕСТВА (GROUPS)
+# ==========================================
+class GroupRead(BaseModel):
+    id: int
+    title: str
+    description: str | None = None
+    slug: str
+    owner_id: int | None = None
     model_config = ConfigDict(from_attributes=True)
 
+class GroupCreate(BaseModel):
+    title: str
+    description: str | None = None
+    slug: str | None = None

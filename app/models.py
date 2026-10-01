@@ -15,6 +15,9 @@ class User(SQLAlchemyBaseUserTable[int], Base):
     
     posts = relationship("Post", back_populates="author", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="author")
+    # 🔥 НОВОЕ: сообщества, которыми владеет пользователь
+    owned_groups = relationship("Group", back_populates="owner")
+
 
 class Group(Base):
     __tablename__ = "groups"
@@ -22,7 +25,13 @@ class Group(Base):
     title = Column(String(200), nullable=False)
     slug = Column(String, unique=True, nullable=False, index=True)
     description = Column(Text)
+    # 🔥 НОВОЕ: владелец сообщества
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
     posts = relationship("Post", back_populates="group")
+    # 🔥 НОВОЕ: связь с владельцем
+    owner = relationship("User", back_populates="owned_groups")
+
 
 class Post(Base):
     __tablename__ = "posts"
@@ -33,10 +42,10 @@ class Post(Base):
     group_id = Column(Integer, ForeignKey("groups.id"), nullable=True, index=True)
     image = Column(String, nullable=True)  # Хранит путь к файлу
     
-    # author = relationship("User", foreign_keys=[author_id])
     author = relationship("User", back_populates="posts")
     group = relationship("Group", back_populates="posts")
     comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
+
 
 class Comment(Base):
     __tablename__ = "comments"
@@ -48,6 +57,7 @@ class Comment(Base):
     
     post = relationship("Post", back_populates="comments")
     author = relationship("User", back_populates="comments")
+
 
 class Follow(Base):
     __tablename__ = "follows"

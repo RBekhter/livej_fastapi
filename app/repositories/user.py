@@ -1,7 +1,8 @@
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
+from sqlalchemy.orm import joinedload, selectinload # 🔥 Добавили selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi_pagination import Page
-from app.models import User, Post, Follow
+from app.models import User, Post, Follow, Comment # 🔥 Добавили Comment
+
 
 class UserRepository:
     def __init__(self, session: AsyncSession):
@@ -11,9 +12,19 @@ class UserRepository:
         stmt = select(User).where(User.username == username)
         return await self.session.scalar(stmt)
 
-    async def get_posts_by_author(self, author_id: int) -> Page:
-        stmt = select(Post).where(Post.author_id == author_id).order_by(Post.pub_date.desc())
-        return await paginate(self.session, stmt)
+    async def get_posts_by_author(self, author_id: int) -> list:
+        # 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: добавляем подгрузку комментариев и их авторов
+        stmt = (
+            select(Post)
+            .options(
+                joinedload(Post.author),
+                selectinload(Post.comments).options(joinedload(Comment.author))
+            )
+            .where(Post.author_id == author_id)
+            .order_by(Post.pub_date.desc())
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().unique().all()
 
     async def count_posts_by_author(self, author_id: int) -> int:
         stmt = select(func.count(Post.id)).where(Post.author_id == author_id)

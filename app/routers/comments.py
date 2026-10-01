@@ -24,6 +24,14 @@ async def create_comment(
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
     
+
+
+#     db_comment = Comment(
+#     **comment_data.model_dump(),
+#     post_id=post_id,
+#     author_id=current_user.id  # 🔥 Исправлено: обращаемся через точку
+# )
+
     db_comment = Comment(
         **comment_data.model_dump(),
         post_id=post_id,
