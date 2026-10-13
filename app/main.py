@@ -3,36 +3,40 @@ from fastapi_pagination import add_pagination
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import posts_django, groups, comments
 from app.routers.auth_users import router as auth_users_router
+from app.database import engine, Base
 
-# 1. Описываем функцию жизненного цикла (lifespan)
+
 async def lifespan(app: FastAPI):
-    # Код, который выполнится до старта приложения
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     yield
-    # Код, который выполнится после завершения
 
-# 2. Создаем ЕДИНСТВЕННЫЙ экземпляр приложения
+
 app = FastAPI(title="livej_fastAPI", lifespan=lifespan)
 
-# 3. НАСТРОЙКА CORS (Обязательно сразу после создания app)
+
 origins = [
-    "http://localhost:5173",
+    "http://127.0.0.1",
+    "http://127.0.0.1:80",
     "http://127.0.0.1:5173",
-    "http://localhost:5174",
+    "http://localhost",
+    "http://localhost:80",
+    "http://localhost:5173",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,       # Разрешаем наши адреса
-    allow_credentials=True,      # Критично важно для кук
-    allow_methods=["*"],         # Разрешаем все методы (GET, POST, OPTIONS и др.)
-    allow_headers=["*"],         # Разрешаем любые заголовки
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# 4. ПОДКЛЮЧАЕМ РОУТЕРЫ
+
 app.include_router(auth_users_router)
 app.include_router(posts_django.router)
 app.include_router(groups.router)
 app.include_router(comments.router)
 
-# 5. ИНИЦИАЛИЗИРУЕМ ПАГИНАЦИЮ
+
 add_pagination(app)
